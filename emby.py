@@ -4,7 +4,7 @@ import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-host = 'http://218.1.145.100:8096'
+host = ''
 
 found_event = threading.Event()
 lock = threading.Lock()
